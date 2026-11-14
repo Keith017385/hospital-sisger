@@ -1,5 +1,5 @@
 {
-	"name": "dataflow1",
+	"name": "df_silver_admissions_sql",
 	"properties": {
 		"type": "MappingDataFlow",
 		"typeProperties": {
@@ -12,10 +12,20 @@
 					"name": "source1"
 				}
 			],
-			"sinks": [],
+			"sinks": [
+				{
+					"name": "sink1"
+				}
+			],
 			"transformations": [
 				{
-					"name": "derivedColumn1"
+					"name": "IDs"
+				},
+				{
+					"name": "Fechas"
+				},
+				{
+					"name": "Departamento"
 				}
 			],
 			"scriptLines": [
@@ -31,7 +41,16 @@
 				"     validateSchema: false,",
 				"     isolationLevel: 'READ_UNCOMMITTED',",
 				"     format: 'table') ~> source1",
-				"source1 derive() ~> derivedColumn1"
+				"source1 derive(admission_id = toInteger(trim(admission_id)),",
+				"          patient_id = toInteger(trim(patient_id)),",
+				"          attending_doctor_id = toInteger(trim(attending_doctor_id))) ~> IDs",
+				"IDs derive(admission_date = toDate(trim(admission_date), 'yyyy-MM-dd'),",
+				"          discharge_date = toDate(trim(discharge_date), 'yyyy-MM-dd')) ~> Fechas",
+				"Fechas derive(department = trim(department)) ~> Departamento",
+				"Departamento sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> sink1"
 			]
 		}
 	}
