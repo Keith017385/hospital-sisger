@@ -1,0 +1,118 @@
+{
+	"name": "df_silver_billing_sql",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "sql_bronze_billing",
+						"type": "DatasetReference"
+					},
+					"name": "source1"
+				},
+				{
+					"dataset": {
+						"referenceName": "dw_silver_admissions_sql",
+						"type": "DatasetReference"
+					},
+					"name": "AdmisionesSilver"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "dw_silver_billing_sql",
+						"type": "DatasetReference"
+					},
+					"name": "sink1"
+				}
+			],
+			"transformations": [
+				{
+					"name": "ClaveAdmision"
+				},
+				{
+					"name": "IDs"
+				},
+				{
+					"name": "Texto"
+				},
+				{
+					"name": "Montos"
+				},
+				{
+					"name": "Fechas"
+				},
+				{
+					"name": "AdmisionExiste"
+				},
+				{
+					"name": "ValidarFilas"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          billing_id as string,",
+				"          admission_id as string,",
+				"          charge_type as string,",
+				"          amount as string,",
+				"          payment_status as string,",
+				"          payment_date as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> source1",
+				"source(output(",
+				"          admission_id as integer",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> AdmisionesSilver",
+				"AdmisionesSilver select(mapColumn(",
+				"          admission_id_silver = admission_id",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> ClaveAdmision",
+				"source1 derive(billing_id = toInteger(trim(billing_id)),",
+				"          admission_id = toInteger(trim(admission_id))) ~> IDs",
+				"IDs derive(charge_type = trim(charge_type),",
+				"          payment_status = lower(trim(payment_status))) ~> Texto",
+				"Texto derive(amount = iif(regexMatch(trim(amount), '^[+-]?[0-9]+([.][0-9]{1,2})?$'), toDecimal(trim(amount), 12, 2), toDecimal(null(), 12, 2))) ~> Montos",
+				"Montos derive(FechaOriginal = payment_date,",
+				"          payment_date = case(regexMatch(trim(payment_date), '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'), toDate(trim(payment_date), 'yyyy-MM-dd'), regexMatch(trim(payment_date), '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}$'), toDate(trim(payment_date), 'M/d/yyyy'), regexMatch(trim(payment_date), '^[0-9]{1,2}-[A-Za-z]{3}-[0-9]{4}$'), toDate(trim(payment_date), 'd-MMM-yyyy'), regexMatch(trim(payment_date), '^[A-Za-z]+ [0-9]{1,2}, [0-9]{4}$'), toDate(trim(payment_date), 'MMMM d, yyyy'), regexMatch(trim(payment_date), '^[0-9]{2}-[0-9]{2}-[0-9]{2}$'), toDate(concat(substring(trim(payment_date), 1, 6), '20', substring(trim(payment_date), 7, 2)), 'MM-dd-yyyy'), toDate(null()))) ~> Fechas",
+				"Fechas, ClaveAdmision exists(admission_id == admission_id_silver,",
+				"     negate:false,",
+				"     broadcast: 'auto')~> AdmisionExiste",
+				"AdmisionExiste split(!isNull(billing_id) && !isNull(admission_id) && (!isNull(charge_type) && length(charge_type) > 0 && length(charge_type) <= 100) && (!isNull(payment_status) && length(payment_status) > 0 && length(payment_status) <= 50) && !isNull(amount) && (isNull(FechaOriginal) || length(trim(FechaOriginal)) == 0 || (!isNull(payment_date) && payment_date <= currentDate())),",
+				"     disjoint: false) ~> ValidarFilas@(ParaSilver, ParaRevision)",
+				"ValidarFilas@ParaSilver sink(allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     input(",
+				"          billing_id as integer,",
+				"          admission_id as integer,",
+				"          charge_type as string,",
+				"          amount as decimal(12,2),",
+				"          payment_status as string,",
+				"          payment_date as date",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          billing_id,",
+				"          admission_id,",
+				"          charge_type,",
+				"          amount,",
+				"          payment_status,",
+				"          payment_date",
+				"     )) ~> sink1"
+			]
+		}
+	}
+}
