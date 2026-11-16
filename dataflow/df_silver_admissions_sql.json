@@ -42,12 +42,14 @@
 				"          admission_date as string,",
 				"          discharge_date as string,",
 				"          department as string,",
-				"          attending_doctor_id as string",
+				"          attending_doctor_id as string,",
+				"          kg_parent_exists as integer",
 				"     ),",
 				"     allowSchemaDrift: true,",
 				"     validateSchema: false,",
 				"     isolationLevel: 'READ_UNCOMMITTED',",
-				"     format: 'table') ~> source1",
+				"     query: 'SELECT b.*, CASE WHEN EXISTS (SELECT 1 FROM silver.patients p WHERE p.patient_id = TRY_CONVERT(int, NULLIF(TRIM(b.patient_id), CHAR(32)))) THEN 1 ELSE 0 END AS kg_parent_exists FROM bronze.admissions b WHERE NOT EXISTS (SELECT 1 FROM silver.admissions d WHERE d.admission_id = TRY_CONVERT(int, NULLIF(TRIM(b.admission_id), CHAR(32))))',",
+				"     format: 'query') ~> source1",
 				"source1 derive(admission_id = toInteger(trim(admission_id)),",
 				"          patient_id = toInteger(trim(patient_id)),",
 				"          attending_doctor_id = toInteger(trim(attending_doctor_id))) ~> IDs",
@@ -87,7 +89,7 @@
 				"    lower(trim(department)) == 'ortho' || lower(trim(department)) == 'orthopedics', 'Orthopedics',",
 				"    trim(department)",
 				")) ~> Departamento",
-				"Departamento split(!isNull(admission_id) && !isNull(patient_id) && !isNull(attending_doctor_id) && !isNull(admission_date) && !isNull(department) && length(trim(department)) > 0 && length(department) <= 100 && (isNull(discharge_date) || discharge_date >= admission_date),",
+				"Departamento split(kg_parent_exists == 1 && !isNull(admission_id) && !isNull(patient_id) && !isNull(attending_doctor_id) && !isNull(admission_date) && !isNull(department) && length(trim(department)) > 0 && length(department) <= 100 && (isNull(discharge_date) || discharge_date >= admission_date),",
 				"     disjoint: false) ~> ValidarAdmissions@(ParaSilver, ParaRevision)",
 				"ValidarAdmissions@ParaSilver sink(allowSchemaDrift: true,",
 				"     validateSchema: false,",
@@ -106,7 +108,15 @@
 				"     format: 'table',",
 				"     skipDuplicateMapInputs: true,",
 				"     skipDuplicateMapOutputs: true,",
-				"     errorHandlingOption: 'stopOnFirstError') ~> sink1"
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          admission_id,",
+				"          patient_id,",
+				"          admission_date,",
+				"          discharge_date,",
+				"          department,",
+				"          attending_doctor_id",
+				"     )) ~> sink1"
 			]
 		}
 	}
