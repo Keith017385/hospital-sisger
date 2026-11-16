@@ -1,5 +1,5 @@
 {
-	"name": "df_gold_dim_fecha_sql",
+	"name": "dw_gold_dim_fecha_sql",
 	"properties": {
 		"linkedServiceName": {
 			"referenceName": "sql_server_hospital",
