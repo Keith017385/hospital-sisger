@@ -52,7 +52,7 @@
 				"     format: 'table') ~> source1",
 				"source1 derive(patient_id = toInteger(trim(patient_id))) ~> IDs",
 				"IDs derive(full_name = trim(full_name),",
-				"          gender = trim(gender),",
+				"          gender = case(lower(trim(gender)) == 'f' || lower(trim(gender)) == 'female', 'F', lower(trim(gender)) == 'm' || lower(trim(gender)) == 'male', 'M', iif(length(trim(gender)) == 0, toString(null()), trim(gender))),",
 				"          phone = trim(phone),",
 				"          email = lower(trim(email)),",
 				"          address = trim(address),",
