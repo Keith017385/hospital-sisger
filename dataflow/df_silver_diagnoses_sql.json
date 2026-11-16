@@ -10,13 +10,6 @@
 						"type": "DatasetReference"
 					},
 					"name": "source1"
-				},
-				{
-					"dataset": {
-						"referenceName": "dw_silver_admissions_sql",
-						"type": "DatasetReference"
-					},
-					"name": "AdmisionesSilver"
 				}
 			],
 			"sinks": [
@@ -30,16 +23,10 @@
 			],
 			"transformations": [
 				{
-					"name": "ClaveAdmision"
-				},
-				{
 					"name": "IDs"
 				},
 				{
 					"name": "Texto"
-				},
-				{
-					"name": "AdmisionExiste"
 				},
 				{
 					"name": "ValidarFilas"
@@ -57,27 +44,12 @@
 				"     validateSchema: false,",
 				"     isolationLevel: 'READ_UNCOMMITTED',",
 				"     format: 'table') ~> source1",
-				"source(output(",
-				"          admission_id as integer",
-				"     ),",
-				"     allowSchemaDrift: true,",
-				"     validateSchema: false,",
-				"     isolationLevel: 'READ_UNCOMMITTED',",
-				"     format: 'table') ~> AdmisionesSilver",
-				"AdmisionesSilver select(mapColumn(",
-				"          admission_id_silver = admission_id",
-				"     ),",
-				"     skipDuplicateMapInputs: true,",
-				"     skipDuplicateMapOutputs: true) ~> ClaveAdmision",
 				"source1 derive(diagnosis_id = toInteger(trim(diagnosis_id)),",
 				"          admission_id = toInteger(trim(admission_id))) ~> IDs",
 				"IDs derive(icd_code = upper(trim(icd_code)),",
 				"          diagnosis_description = trim(diagnosis_description),",
 				"          severity = trim(severity)) ~> Texto",
-				"Texto, ClaveAdmision exists(admission_id == admission_id_silver,",
-				"     negate:false,",
-				"     broadcast: 'auto')~> AdmisionExiste",
-				"AdmisionExiste split(!isNull(diagnosis_id) && !isNull(admission_id) && (!isNull(icd_code) && length(icd_code) > 0 && length(icd_code) <= 50) && (isNull(diagnosis_description) || length(diagnosis_description) <= 500) && (isNull(severity) || length(severity) <= 50),",
+				"Texto split(!isNull(diagnosis_id) && !isNull(admission_id) && (!isNull(icd_code) && length(icd_code) > 0 && length(icd_code) <= 50) && (isNull(diagnosis_description) || length(diagnosis_description) <= 500) && (isNull(severity) || length(severity) <= 50),",
 				"     disjoint: false) ~> ValidarFilas@(ParaSilver, ParaRevision)",
 				"ValidarFilas@ParaSilver sink(allowSchemaDrift: false,",
 				"     validateSchema: false,",
