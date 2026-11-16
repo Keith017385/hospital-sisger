@@ -1,0 +1,84 @@
+{
+	"name": "df_gold_dim_paciente_sql",
+	"properties": {
+		"folder": {
+			"name": "Gold"
+		},
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "dw_silver_patients_sql",
+						"type": "DatasetReference"
+					},
+					"name": "source1"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "dw_gold_dim_paciente_sql",
+						"type": "DatasetReference"
+					},
+					"name": "sink1"
+				}
+			],
+			"transformations": [
+				{
+					"name": "CalcularEdad"
+				},
+				{
+					"name": "RangoEtario"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          patient_id_bk as integer,",
+				"          nombre_completo as string,",
+				"          genero as string,",
+				"          fecha_nacimiento as date,",
+				"          correo_electronico as string,",
+				"          direccion as string,",
+				"          proveedor_seguro as string",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     query: 'SELECT p.patient_id AS patient_id_bk, p.full_name AS nombre_completo, CASE p.gender WHEN \\'F\\' THEN \\'Femenino\\' WHEN \\'M\\' THEN \\'Masculino\\' WHEN \\'Otro\\' THEN \\'Otro\\' ELSE \\'No informado\\' END AS genero, p.date_of_birth AS fecha_nacimiento, p.email AS correo_electronico, p.address AS direccion, COALESCE(NULLIF(TRIM(p.insurance_provider), \\'\\'), N\\'No informado\\') AS proveedor_seguro FROM silver.patients p WHERE NOT EXISTS (SELECT 1 FROM gold.dim_paciente d WHERE d.patient_id_bk = p.patient_id)',",
+				"     format: 'query') ~> source1",
+				"source1 derive(edad = year(currentDate('America/La_Paz')) - year(fecha_nacimiento) - iif(toInteger(toString(currentDate('America/La_Paz'), 'MMdd')) < toInteger(toString(fecha_nacimiento, 'MMdd')), 1, 0)) ~> CalcularEdad",
+				"CalcularEdad derive(rango_etario = case(isNull(edad) || edad < 0, toString(null()), edad <= 18, '0-18', edad <= 35, '19-35', edad <= 60, '36-60', '61+')) ~> RangoEtario",
+				"RangoEtario sink(allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     input(",
+				"          paciente_key as integer,",
+				"          patient_id_bk as integer,",
+				"          nombre_completo as string,",
+				"          genero as string,",
+				"          fecha_nacimiento as date,",
+				"          rango_etario as string,",
+				"          correo_electronico as string,",
+				"          direccion as string,",
+				"          proveedor_seguro as string",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          patient_id_bk,",
+				"          nombre_completo,",
+				"          genero,",
+				"          fecha_nacimiento,",
+				"          correo_electronico,",
+				"          direccion,",
+				"          proveedor_seguro,",
+				"          rango_etario",
+				"     )) ~> sink1"
+			]
+		}
+	}
+}

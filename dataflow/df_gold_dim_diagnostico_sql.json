@@ -1,0 +1,61 @@
+{
+	"name": "df_gold_dim_diagnostico_sql",
+	"properties": {
+		"folder": {
+			"name": "Gold"
+		},
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "dw_silver_diagnoses_sql",
+						"type": "DatasetReference"
+					},
+					"name": "source1"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "dw_gold_dim_diagnostico_sql",
+						"type": "DatasetReference"
+					},
+					"name": "sink1"
+				}
+			],
+			"transformations": [],
+			"scriptLines": [
+				"source(output(",
+				"          codigo_icd as string,",
+				"          descripcion_patologia as string,",
+				"          nivel_severidad as string",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     query: 'SELECT d.codigo_icd, MAX(d.descripcion_patologia) AS descripcion_patologia, d.nivel_severidad FROM (SELECT icd_code AS codigo_icd, diagnosis_description AS descripcion_patologia, COALESCE(NULLIF(LOWER(TRIM(severity)), \\'\\'), \\'No informado\\') AS nivel_severidad FROM silver.diagnoses UNION ALL SELECT \\'SIN_DIAG\\', N\\'Sin diagnóstico en Silver\\', \\'No informado\\') d WHERE NOT EXISTS (SELECT 1 FROM gold.dim_diagnostico g WHERE g.codigo_icd = d.codigo_icd AND g.nivel_severidad = d.nivel_severidad) GROUP BY d.codigo_icd, d.nivel_severidad',",
+				"     format: 'query') ~> source1",
+				"source1 sink(allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     input(",
+				"          diagnostico_key as integer,",
+				"          codigo_icd as string,",
+				"          descripcion_patologia as string,",
+				"          nivel_severidad as string",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          codigo_icd,",
+				"          descripcion_patologia,",
+				"          nivel_severidad",
+				"     )) ~> sink1"
+			]
+		}
+	}
+}
