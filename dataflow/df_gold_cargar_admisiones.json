@@ -1,0 +1,79 @@
+{
+	"name": "df_gold_cargar_admisiones",
+	"properties": {
+		"folder": {
+			"name": "Gold"
+		},
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "dw_silver_admissions_sql",
+						"type": "DatasetReference"
+					},
+					"name": "source1"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "dw_gold_fact_admisiones_sql",
+						"type": "DatasetReference"
+					},
+					"name": "sink1"
+				}
+			],
+			"transformations": [],
+			"scriptLines": [
+				"source(output(",
+				"          admission_id_bk as integer,",
+				"          paciente_key as integer,",
+				"          departamento_key as integer,",
+				"          diagnostico_key as integer,",
+				"          fecha_ingreso_key as integer,",
+				"          fecha_alta_key as integer,",
+				"          medico_id as integer,",
+				"          dias_estancia as integer,",
+				"          conteo_admisiones as integer",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     query: 'SELECT a.admission_id AS admission_id_bk,p.paciente_key,dep.departamento_key,dx.diagnostico_key,fi.fecha_key AS fecha_ingreso_key,fa.fecha_key AS fecha_alta_key,a.attending_doctor_id AS medico_id,DATEDIFF(day,a.admission_date,a.discharge_date) AS dias_estancia,1 AS conteo_admisiones FROM silver.admissions a OUTER APPLY (SELECT TOP (1) icd_code,severity FROM silver.diagnoses WHERE admission_id=a.admission_id ORDER BY diagnosis_id) d JOIN gold.dim_paciente p ON p.patient_id_bk=a.patient_id JOIN gold.dim_departamento dep ON dep.nombre_departamento=a.department JOIN gold.dim_diagnostico dx ON dx.codigo_icd=COALESCE(d.icd_code,\\'SIN_DIAG\\') AND dx.nivel_severidad=COALESCE(NULLIF(LOWER(TRIM(d.severity)),\\'\\'),\\'No informado\\') JOIN gold.dim_fecha fi ON fi.fecha_key=CONVERT(int,CONVERT(char(8),a.admission_date,112)) LEFT JOIN gold.dim_fecha fa ON fa.fecha_key=CONVERT(int,CONVERT(char(8),a.discharge_date,112)) WHERE (a.discharge_date IS NULL OR fa.fecha_key IS NOT NULL) AND NOT EXISTS (SELECT 1 FROM gold.fact_admisiones g WHERE g.admission_id_bk=a.admission_id)',",
+				"     format: 'query') ~> source1",
+				"source1 sink(allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     input(",
+				"          admision_key as long,",
+				"          admission_id_bk as integer,",
+				"          paciente_key as integer,",
+				"          departamento_key as integer,",
+				"          diagnostico_key as integer,",
+				"          fecha_ingreso_key as integer,",
+				"          fecha_alta_key as integer,",
+				"          medico_id as integer,",
+				"          dias_estancia as integer,",
+				"          conteo_admisiones as integer",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          admission_id_bk,",
+				"          paciente_key,",
+				"          departamento_key,",
+				"          diagnostico_key,",
+				"          fecha_ingreso_key,",
+				"          fecha_alta_key,",
+				"          medico_id,",
+				"          dias_estancia,",
+				"          conteo_admisiones",
+				"     )) ~> sink1"
+			]
+		}
+	}
+}
